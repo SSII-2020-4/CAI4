@@ -1,5 +1,7 @@
 import json
 import os
+from consolemenu import *
+from consolemenu.items import FunctionItem
 from base64 import b64decode, b64encode
 
 from Crypto.Cipher import AES
@@ -9,41 +11,37 @@ from Crypto.Random import get_random_bytes
 
 class Ciphers:
     def __init__(self):
-        # Generate the key
+        # Generar la clave
         self.key = self.key_generation()
-        # self.buffer_size = 65536  # 64kb
-        # Path of files to encrypt/decrypt
+        # Ruta de los ficheros a cifrar o descifrar
         self.files_path = "files"
 
     def key_generation(self):
-        # Key generation if not exists
+        # Generacion de la clave si no existe
         # 32 bytes * 8 = 256 bits (1 byte = 8 bits)
         key_location = "key.bin"
         if os.path.exists(key_location):
-            file_in = open(key_location, "rb")  # Read bytes
-            key = file_in.read()  # This key should be the same
+            file_in = open(key_location, "rb")  # Lee los bytes
+            key = file_in.read()  # Esta clave debe ser la misma
             file_in.close()
         else:
             kdf_salt = get_random_bytes(32)
-            default_passphrase = "I!LIKE!IKE!"
-            user_passphrase = input("SECRET PASSPHRASE INPUT\n"
-                                    "You will need this to decrypt\n"
-                                    "Default: " +
+            default_passphrase = "grupo4"
+            user_passphrase = input("Inserte una frase para generar la clave \n"
+                                    "Por defecto: " +
                                     str(default_passphrase) + "\n"
-                                    "Enter secret passphrase:"
+                                    "Inserte la frase:"
                                     )
             passphrase = user_passphrase or default_passphrase
-            print("Passphrase used: " + str(passphrase))
             key = PBKDF2(passphrase, kdf_salt, dkLen=32)
-            # Save the key to a file
+            # Guarda la clave en un fichero
             file_out = open(key_location, "wb")
             file_out.write(key)
             file_out.close()
-        print("AES Encryption Key: " + str(key))
         return key
 
     def encrypt(self, file_to_encrypt):
-        # Open the input and output files
+        # Abrir los archivos de salida o entrada
         input_file = open(os.path.join(self.files_path, file_to_encrypt), 'rb')
         output_file = open(
             os.path.join(
@@ -51,10 +49,10 @@ class Ciphers:
                 file_to_encrypt + '.encrypted'
             ), 'w')
 
-        # Create the cipher object and encrypt the data
+        # Crear el objeto de cifrado y cifrar los datos
         cipher = AES.new(self.key, mode=AES.MODE_GCM)
 
-        # Keep reading the file into the buffer, encrypting then writing to the new file
+        # Mantener leyendo el archivo en el buffer, cifrando y escribiendo en el nuevo fichero
         ciphertext, tag = cipher.encrypt_and_digest(input_file.read())
 
         json_k = ['nonce', 'ciphertext', 'tag']
@@ -66,12 +64,12 @@ class Ciphers:
 
         output_file.write(json.dumps(dict(zip(json_k, json_v))))
 
-        # Close the input and output files
+        # Cerrar la entrada y salida de los ficheros
         input_file.close()
         output_file.close()
 
     def decrypt(self, file_to_encrypt):
-        # Open the input and output files
+        # Abrir la entrada y salida de los ficheros
         with open(
                 os.path.join(
                     self.files_path,
@@ -87,22 +85,33 @@ class Ciphers:
         json_k = ['nonce', 'ciphertext', 'tag']
         jv = {k: b64decode(b64[k]) for k in json_k}
 
-        # Create the cipher object and encrypt the data
+        # Crear el objeto de cifrado y cifrar los datos
         cipher = AES.new(self.key, AES.MODE_GCM, nonce=jv["nonce"])
 
-        # Keep reading the file into the buffer, decrypting then writing to the new file
+        # Mantener leyendo el archivo en el buffer, cifrando y escribiendo en el nuevo fichero
         plain_text = cipher.decrypt_and_verify(
             jv["ciphertext"],
             jv["tag"]
         )
         output_file.write(plain_text.decode('ascii'))
 
-        # Close the input and output files
-        # input_file.close()
+        # Cerrar la entrada y salida de los ficheros
+        
         output_file.close()
 
 
 if __name__ == '__main__':
+
     c = Ciphers()
-    # c.encrypt("text")
-    c.decrypt("text")
+
+    menu = ConsoleMenu("AES 256 GCM")
+
+    fichero = input("Inserte nombre del fichero: ")
+
+    cifrado = FunctionItem("Cifrado del fichero", c.encrypt, [fichero])
+    descifrado = FunctionItem("Descifrado del fichero", c.decrypt, [fichero])
+
+    menu.append_item(cifrado)
+    menu.append_item(descifrado)
+
+    menu.show()
