@@ -1,4 +1,14 @@
-pycryptodome==3.9.7
 cffi==1.14.0
-python-camellia==1.0
 console-menu==0.6.0
+cryptography==2.9
+javaobj-py3==0.4.0.1
+pep272-encryption==0.3
+pyasn1==0.4.8
+pyasn1-modules==0.2.8
+pycparser==2.20
+pycryptodome==3.9.7
+pycryptodomex==3.9.7
+pyjks==19.0.0
+pyOpenSSL==19.1.0
+python-camellia==1.0
+six==1.14.0
