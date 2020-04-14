@@ -1,5 +1,7 @@
 import json
 import os
+import OpenSSL
+import jks
 from base64 import b64decode, b64encode
 from mimetypes import init
 
@@ -28,9 +30,11 @@ class Ciphers:
 
         cifrado = FunctionItem("Cifrado del fichero", self.encrypt)
         descifrado = FunctionItem("Descifrado del fichero", self.decrypt)
+        generado_claves = FunctionItem("Generar nueva clave privada", self.generate_key)
 
         menu.append_item(cifrado)
         menu.append_item(descifrado)
+        menu.append_item(generado_claves)
 
         menu.show()
 
@@ -117,7 +121,38 @@ class Ciphers:
 
         # Cerrar la entrada y salida de los ficheros
         output_file.close()
+    
+    def generate_key(self):
+        incorrect_password = True
+        while(incorrect_password):
+            password_keystore = input("Introduza la contraseña del almacén de claves: ")
+            try:
+                stored_keys = list(jks.KeyStore.load("./my_keystore.jks", password_keystore).entries.values())
+                incorrect_password = False
+            except jks.util.KeystoreSignatureException as e:
+                print("Contraseña incorrecta, inténtelo otra vez.")
+            
+        invalid_name = True
+        while (invalid_name):
+            alias_private_key = input("Introduzca un alias para indentificar a la nueva clave privada: ")
+            if not alias_private_key in [private_key_stored.alias for private_key_stored in stored_keys]:
+                invalid_name = False
+            else:
+                print("Ya existe una clave privada con el alias: '" + alias_private_key + "'")
+            
+        private_key = OpenSSL.crypto.PKey()
+        private_key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
+        dumped_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_ASN1, private_key)
+        
+        stored_keys.append(jks.PrivateKeyEntry.new(alias_private_key, [], dumped_key, 'rsa_raw'))
+        keystore = jks.KeyStore.new('jks', stored_keys)
+        keystore.save('./my_keystore.jks', password_keystore)
+        print("Clave generada con éxito")
+
+        
+
 
 
 if __name__ == '__main__':
     c = Ciphers()
+    c.generate_key()
