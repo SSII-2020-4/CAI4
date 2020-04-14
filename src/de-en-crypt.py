@@ -1,9 +1,10 @@
 import json
 import os
-from consolemenu import *
-from consolemenu.items import FunctionItem
 from base64 import b64decode, b64encode
+from mimetypes import init
 
+from consolemenu import ConsoleMenu
+from consolemenu.items import FunctionItem
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Random import get_random_bytes
@@ -15,6 +16,23 @@ class Ciphers:
         self.key = self.key_generation()
         # Ruta de los ficheros a cifrar o descifrar
         self.files_path = "files"
+        self.init_menu()
+
+    def init_menu(self):
+        titulo = "Menú principal"
+        subtitulo = "Programa para cifrar ficheros con AES 256 GCM"
+        prologue = "Para poder encriptar ficheros tiene que estar situados en la carpeta files."\
+            " Los ficheros *.encrypted y *.decrypted se situarán en la misma carpeta."
+
+        menu = ConsoleMenu(titulo, subtitulo, prologue_text=prologue)
+
+        cifrado = FunctionItem("Cifrado del fichero", self.encrypt)
+        descifrado = FunctionItem("Descifrado del fichero", self.decrypt)
+
+        menu.append_item(cifrado)
+        menu.append_item(descifrado)
+
+        menu.show()
 
     def key_generation(self):
         # Generacion de la clave si no existe
@@ -40,8 +58,9 @@ class Ciphers:
             file_out.close()
         return key
 
-    def encrypt(self, file_to_encrypt):
+    def encrypt(self):
         # Abrir los archivos de salida o entrada
+        file_to_encrypt = input("Inserte nombre del fichero: ")
         input_file = open(os.path.join(self.files_path, file_to_encrypt), 'rb')
         output_file = open(
             os.path.join(
@@ -68,18 +87,19 @@ class Ciphers:
         input_file.close()
         output_file.close()
 
-    def decrypt(self, file_to_encrypt):
+    def decrypt(self):
         # Abrir la entrada y salida de los ficheros
+        file_to_encrypt = input("Inserte nombre del fichero: ")
         with open(
                 os.path.join(
                     self.files_path,
-                    file_to_encrypt + '.encrypted'
+                    file_to_encrypt
                 ), 'r') as json_file:
             b64 = json.load(json_file)
         output_file = open(
             os.path.join(
                 self.files_path,
-                file_to_encrypt + '.decrypted'
+                file_to_encrypt.replace(".encrypted", "") + '.decrypted'
             ), 'w')
 
         json_k = ['nonce', 'ciphertext', 'tag']
@@ -96,22 +116,8 @@ class Ciphers:
         output_file.write(plain_text.decode('ascii'))
 
         # Cerrar la entrada y salida de los ficheros
-        
         output_file.close()
 
 
 if __name__ == '__main__':
-
     c = Ciphers()
-
-    menu = ConsoleMenu("AES 256 GCM")
-
-    fichero = input("Inserte nombre del fichero: ")
-
-    cifrado = FunctionItem("Cifrado del fichero", c.encrypt, [fichero])
-    descifrado = FunctionItem("Descifrado del fichero", c.decrypt, [fichero])
-
-    menu.append_item(cifrado)
-    menu.append_item(descifrado)
-
-    menu.show()
