@@ -66,7 +66,7 @@ class Ciphers:
             # Comprueba que la contraseña del almacén es válida
             incorrect_password = True
             while(incorrect_password):
-                password_keystore = input("Introduza la contraseña del almacén de claves: ")
+                password_keystore = input("Introduzca la contraseña del almacén de claves: ")
                 try:
                     stored_keys = jks.KeyStore.load("./my_keystore.jks", password_keystore).entries
                     stored_keys_as_list = list(stored_keys.values())
@@ -77,7 +77,7 @@ class Ciphers:
             # Comprueba que la selección de la clave es correcta 
             incorrect_key = True
             while(incorrect_key):
-                alias_key_selected = input("Introduza el alias de la clave (Alias almacenados: " + str([stored_key.alias for stored_key in stored_keys_as_list])+ "): ")
+                alias_key_selected = input("Introduzca el alias de la clave (Alias almacenados: " + str([stored_key.alias for stored_key in stored_keys_as_list])+ "): ")
                 if alias_key_selected in [stored_key.alias for stored_key in stored_keys_as_list]:
                     incorrect_key = False
                 else:
@@ -123,7 +123,7 @@ class Ciphers:
             # Comprobación de que la contraseña del almacén de claves es correcta
             incorrect_password = True
             while(incorrect_password):
-                password_keystore = input("Introduza la contraseña del almacén de claves: ")
+                password_keystore = input("Introduzca la contraseña del almacén de claves: ")
                 try:
                     stored_keys = jks.KeyStore.load("./my_keystore.jks", password_keystore).entries
                     stored_keys_as_list = list(stored_keys.values())
@@ -134,7 +134,7 @@ class Ciphers:
             # Comprobación de que la clave seleccionada es válida
             incorrect_key = True
             while(incorrect_key):
-                alias_key_selected = input("Introduza el alias de la clave (Alias almacenados: " + str([stored_key.alias for stored_key in stored_keys_as_list])+ "): ")
+                alias_key_selected = input("Introduzca el alias de la clave (Alias almacenados: " + str([stored_key.alias for stored_key in stored_keys_as_list])+ "): ")
                 if alias_key_selected in [stored_key.alias for stored_key in stored_keys_as_list]:
                     incorrect_key = False
                 else:
@@ -168,14 +168,14 @@ class Ciphers:
     def generate_key(self):
         #Si no existe el keystore, hay que generarlo
         if not os.path.exists("./my_keystore.jks"):
-            password_new_keystore = input("Introduza una contraseña para generar el almacén de claves: ")
+            password_new_keystore = input("Introduzca una contraseña para generar el almacén de claves: ")
             keystore = jks.KeyStore.new('jks', [])
             keystore.save('./my_keystore.jks', password_new_keystore)
 
         # Para acceder al ks, hay que poner la contraseña correcta. Si es incorrecta, se solicita otra vez.
         incorrect_password = True
         while(incorrect_password):
-            password_keystore = input("Introduza la contraseña del almacén de claves: ")
+            password_keystore = input("Introduzca la contraseña del almacén de claves: ")
             try:
                 stored_keys = list(jks.KeyStore.load("./my_keystore.jks", password_keystore).entries.values())
                 incorrect_password = False
@@ -185,7 +185,7 @@ class Ciphers:
         # Se pide el alias de la clave para que pueda ser identificada posteriormente. Si hay existe una clave con ese alias, se solicita otra vez
         invalid_name = True
         while (invalid_name):
-            alias_private_key = input("Introduzca un alias para indentificar a la nueva clave privada: ")
+            alias_private_key = input("Introduzca un alias para identificar a la nueva clave privada: ")
             if not alias_private_key in [private_key_stored.alias for private_key_stored in stored_keys]:
                 invalid_name = False
             else:
