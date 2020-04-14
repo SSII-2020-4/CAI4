@@ -15,7 +15,6 @@ from Crypto.Random import get_random_bytes
 class Ciphers:
     def __init__(self):
         # Generar la clave
-        self.key = self.key_generation()
         # Ruta de los ficheros a cifrar o descifrar
         self.files_path = "files"
         self.init_menu()
@@ -25,6 +24,9 @@ class Ciphers:
         subtitulo = "Programa para cifrar ficheros con AES 256 GCM"
         prologue = "Para poder encriptar ficheros tiene que estar situados en la carpeta files."\
             " Los ficheros *.encrypted y *.decrypted se situarán en la misma carpeta."
+
+        if not os.path.exists("./my_keystore.jks"):
+            prologue += " PARA HACER USO DE LAS FUNCIONES DE ENCRIPTADO Y DESENCRIPTADO, DEBE CREAR UN ALMACÉN DE CLAVES Y UNA CLAVE (3)."
 
         menu = ConsoleMenu(titulo, subtitulo, prologue_text=prologue)
 
@@ -38,91 +40,139 @@ class Ciphers:
 
         menu.show()
 
-    def key_generation(self):
-        # Generacion de la clave si no existe
-        # 32 bytes * 8 = 256 bits (1 byte = 8 bits)
-        key_location = "key.bin"
-        if os.path.exists(key_location):
-            file_in = open(key_location, "rb")  # Lee los bytes
-            key = file_in.read()  # Esta clave debe ser la misma
-            file_in.close()
+    def validacionExisteKeyStore(funcion):
+        if not os.path.exists("./my_keystore.jks"):
+            print("No existe un almacén de claves. Realize el apartado 3 para crear uno.")
+            input("Introduzca cualquier caracter para volver al menú")
         else:
-            kdf_salt = get_random_bytes(32)
-            default_passphrase = "grupo4"
-            user_passphrase = input("Inserte una frase para generar la clave \n"
-                                    "Por defecto: " +
-                                    str(default_passphrase) + "\n"
-                                    "Inserte la frase:"
-                                    )
-            passphrase = user_passphrase or default_passphrase
-            key = PBKDF2(passphrase, kdf_salt, dkLen=32)
-            # Guarda la clave en un fichero
-            file_out = open(key_location, "wb")
-            file_out.write(key)
-            file_out.close()
-        return key
+            funcion()
 
+    
     def encrypt(self):
-        # Abrir los archivos de salida o entrada
-        file_to_encrypt = input("Inserte nombre del fichero: ")
-        input_file = open(os.path.join(self.files_path, file_to_encrypt), 'rb')
-        output_file = open(
-            os.path.join(
-                self.files_path,
-                file_to_encrypt + '.encrypted'
-            ), 'w')
+        if not os.path.exists("./my_keystore.jks"):
+            print("No existe un almacén de claves. Realize el apartado 3 para crear uno.")
+            input("Introduzca cualquier caracter para volver al menú: ")
+        else:
+            # Comprobación de que el archivo existe
+            invalid_file = True
+            while invalid_file:
+                try:
+                    file_to_encrypt = input("Inserte nombre del fichero: ")
+                    input_file = open(os.path.abspath(os.path.join("..", self.files_path, file_to_encrypt)), 'rb')
+                    invalid_file = False
+                except FileNotFoundError as e:
+                    print("El archivo '" + file_to_encrypt + "' no existe en la carpeta files")
+            
+            # Comprueba que la contraseña del almacén es válida
+            incorrect_password = True
+            while(incorrect_password):
+                password_keystore = input("Introduza la contraseña del almacén de claves: ")
+                try:
+                    stored_keys = jks.KeyStore.load("./my_keystore.jks", password_keystore).entries
+                    stored_keys_as_list = list(stored_keys.values())
+                    incorrect_password = False
+                except jks.util.KeystoreSignatureException as e:
+                    print("Contraseña incorrecta, inténtelo otra vez.")
 
-        # Crear el objeto de cifrado y cifrar los datos
-        cipher = AES.new(self.key, mode=AES.MODE_GCM)
+            # Comprueba que la selección de la clave es correcta 
+            incorrect_key = True
+            while(incorrect_key):
+                alias_key_selected = input("Introduza el alias de la clave (Alias almacenados: " + str([stored_key.alias for stored_key in stored_keys_as_list])+ "): ")
+                if alias_key_selected in [stored_key.alias for stored_key in stored_keys_as_list]:
+                    incorrect_key = False
+                else:
+                    print("No existe una clave con el alias '" + alias_key_selected + "'")
 
-        # Mantener leyendo el archivo en el buffer, cifrando y escribiendo en el nuevo fichero
-        ciphertext, tag = cipher.encrypt_and_digest(input_file.read())
+            private_key = stored_keys[alias_key_selected].pkey
 
-        json_k = ['nonce', 'ciphertext', 'tag']
-        json_v = [
-            b64encode(cipher.nonce).decode('utf-8'),
-            b64encode(ciphertext).decode('utf-8'),
-            b64encode(tag).decode('utf-8')
-        ]
+            output_file = open(os.path.abspath(os.path.join("..", self.files_path, file_to_encrypt + '.encrypted')), 'w')
+            # Crear el objeto de cifrado y cifrar los datos
+            cipher = AES.new(private_key, mode=AES.MODE_GCM)
 
-        output_file.write(json.dumps(dict(zip(json_k, json_v))))
+            # Mantener leyendo el archivo en el buffer, cifrando y escribiendo en el nuevo fichero
+            ciphertext, tag = cipher.encrypt_and_digest(input_file.read())
 
-        # Cerrar la entrada y salida de los ficheros
-        input_file.close()
-        output_file.close()
+            json_k = ['nonce', 'ciphertext', 'tag']
+            json_v = [
+                b64encode(cipher.nonce).decode('utf-8'),
+                b64encode(ciphertext).decode('utf-8'),
+                b64encode(tag).decode('utf-8')
+            ]
+
+            output_file.write(json.dumps(dict(zip(json_k, json_v))))
+
+            # Cerrar la entrada y salida de los ficheros
+            input_file.close()
+            output_file.close()
 
     def decrypt(self):
-        # Abrir la entrada y salida de los ficheros
-        file_to_encrypt = input("Inserte nombre del fichero: ")
-        with open(
-                os.path.join(
-                    self.files_path,
-                    file_to_encrypt
-                ), 'r') as json_file:
-            b64 = json.load(json_file)
-        output_file = open(
-            os.path.join(
-                self.files_path,
-                file_to_encrypt.replace(".encrypted", "") + '.decrypted'
-            ), 'w')
+        if not os.path.exists("./my_keystore.jks"):
+            print("No existe un almacén de claves. Realize el apartado 3 para crear uno.")
+            input("Introduzca cualquier caracter para volver al menú: ")
+        else:
+            # Comprobación que el fichero existe
+            invalid_file = True
+            while invalid_file:
+                try:
+                    file_to_decrypt = input("Inserte nombre del fichero (Introduzca el nombre entero junto a la extension del archivo): ")
+                    input_file = open(os.path.abspath(os.path.join("..", self.files_path, file_to_decrypt)), 'r')
+                    invalid_file = False
+                except FileNotFoundError as e:
+                    print("El archivo '" + file_to_decrypt + "' no existe en la carpeta files")
+            
+            # Comprobación de que la contraseña del almacén de claves es correcta
+            incorrect_password = True
+            while(incorrect_password):
+                password_keystore = input("Introduza la contraseña del almacén de claves: ")
+                try:
+                    stored_keys = jks.KeyStore.load("./my_keystore.jks", password_keystore).entries
+                    stored_keys_as_list = list(stored_keys.values())
+                    incorrect_password = False
+                except jks.util.KeystoreSignatureException as e:
+                    print("Contraseña incorrecta, inténtelo otra vez.")
 
-        json_k = ['nonce', 'ciphertext', 'tag']
-        jv = {k: b64decode(b64[k]) for k in json_k}
+            # Comprobación de que la clave seleccionada es válida
+            incorrect_key = True
+            while(incorrect_key):
+                alias_key_selected = input("Introduza el alias de la clave (Alias almacenados: " + str([stored_key.alias for stored_key in stored_keys_as_list])+ "): ")
+                if alias_key_selected in [stored_key.alias for stored_key in stored_keys_as_list]:
+                    incorrect_key = False
+                else:
+                    print("No existe una clave con el alias '" + alias_key_selected + "'")
+            
+            private_key = stored_keys[alias_key_selected].pkey
+            b64 = json.load(input_file)
+            output_file = open(os.path.abspath(os.path.join("..", self.files_path,file_to_decrypt.replace(".encrypted", "") + '.decrypted')), 'w')
 
-        # Crear el objeto de cifrado y cifrar los datos
-        cipher = AES.new(self.key, AES.MODE_GCM, nonce=jv["nonce"])
+            json_k = ['nonce', 'ciphertext', 'tag']
+            jv = {k: b64decode(b64[k]) for k in json_k}
 
-        # Mantener leyendo el archivo en el buffer, cifrando y escribiendo en el nuevo fichero
-        plain_text = cipher.decrypt_and_verify(
-            jv["ciphertext"],
-            jv["tag"]
-        )
-        output_file.write(plain_text.decode('ascii'))
+            # Crear el objeto de cifrado y cifrar los datos
+            cipher = AES.new(private_key, AES.MODE_GCM, nonce=jv["nonce"])
 
-        # Cerrar la entrada y salida de los ficheros
-        output_file.close()
+            try:
+                # Mantener leyendo el archivo en el buffer, cifrando y escribiendo en el nuevo fichero
+                plain_text = cipher.decrypt_and_verify(
+                    jv["ciphertext"],
+                    jv["tag"]
+                )
+                output_file.write(plain_text.decode('ascii'))
+            except ValueError as e:
+                print("El archivo no se ha podido descifrar ¿Ha elegido la clave con la que cifró el archivo?")
+                input("Introduca cualquier caracter para volver al menú.")
+            finally:
+                # Cerrar la entrada y salida de los ficheros
+                output_file.close()
+                input_file.close()
     
     def generate_key(self):
+        #Si no existe el keystore, hay que generarlo
+        if not os.path.exists("./my_keystore.jks"):
+            password_new_keystore = input("Introduza una contraseña para generar el almacén de claves: ")
+            keystore = jks.KeyStore.new('jks', [])
+            keystore.save('./my_keystore.jks', password_new_keystore)
+
+        # Para acceder al ks, hay que poner la contraseña correcta. Si es incorrecta, se solicita otra vez.
         incorrect_password = True
         while(incorrect_password):
             password_keystore = input("Introduza la contraseña del almacén de claves: ")
@@ -131,7 +181,8 @@ class Ciphers:
                 incorrect_password = False
             except jks.util.KeystoreSignatureException as e:
                 print("Contraseña incorrecta, inténtelo otra vez.")
-            
+        
+        # Se pide el alias de la clave para que pueda ser identificada posteriormente. Si hay existe una clave con ese alias, se solicita otra vez
         invalid_name = True
         while (invalid_name):
             alias_private_key = input("Introduzca un alias para indentificar a la nueva clave privada: ")
@@ -139,20 +190,17 @@ class Ciphers:
                 invalid_name = False
             else:
                 print("Ya existe una clave privada con el alias: '" + alias_private_key + "'")
-            
-        private_key = OpenSSL.crypto.PKey()
-        private_key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
-        dumped_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_ASN1, private_key)
+        
+
+        passphrase = input("Introduca una contraseña para generar la clave: ")
+        kdf_salt = get_random_bytes(32)
+        dumped_key = PBKDF2(passphrase, kdf_salt, dkLen=32)
         
         stored_keys.append(jks.PrivateKeyEntry.new(alias_private_key, [], dumped_key, 'rsa_raw'))
         keystore = jks.KeyStore.new('jks', stored_keys)
         keystore.save('./my_keystore.jks', password_keystore)
         print("Clave generada con éxito")
-
         
-
-
 
 if __name__ == '__main__':
     c = Ciphers()
-    c.generate_key()
