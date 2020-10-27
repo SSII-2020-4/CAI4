@@ -1,6 +1,6 @@
 cffi==1.14.0
 console-menu==0.6.0
-cryptography==2.9
+cryptography==3.2
 javaobj-py3==0.4.0.1
 pep272-encryption==0.3
 pyasn1==0.4.8
